@@ -1,0 +1,19 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node build.js
+      - run: node --check blink-x.js && node --check blink-x-test.js
+      - run: node test_qx.js
+      - run: git diff --exit-code

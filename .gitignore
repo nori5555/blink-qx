@@ -1,0 +1,13 @@
+# No credentials, packet captures or temporary artifacts in this public repository.
+.env
+.env.*
+*.ipa
+*.har
+*.pcap
+*.pcapng
+*.imazingapp
+*.log
+.DS_Store
+node_modules/
+artifacts/
+credentials/

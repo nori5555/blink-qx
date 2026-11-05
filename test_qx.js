@@ -40,7 +40,7 @@ test('Conflicting policy skipped',()=>assert.ok(!run({headers:{'content-security
 test('Style nonce set',()=>assert.ok(run({headers:{'content-security-policy':"script-src 'nonce-A';style-src 'nonce-S'"}}).body.includes('"styleNonce":"S"')));
 test('No nonce cannot bypass CSP',()=>assert.ok(!run({headers:{'content-security-policy':"script-src 'self'"}}).body));
 test('Meta CSP respected',()=>assert.ok(run({body:body.replace('<head>','<head><meta http-equiv="Content-Security-Policy" content="script-src \'nonce-M\';style-src \'unsafe-inline\'">')}).body.includes('nonce="M"')));
-test('No inline click handlers or window navigation',()=>assert.ok(!/onclick=|window\.open|window\.location/.test(fn)));
+test('No inline event attributes or popup windows',()=>assert.ok(!/onclick=|window\.open/.test(fn)));
 test('Real anchors are used',()=>assert.ok(fn.includes("document.createElement('a')")&&fn.includes('anchor.href=target.deepLink')));
 
 const snippet=fs.readFileSync(path.join(__dirname,'blink-x-local.snippet.conf'),'utf8');
@@ -48,7 +48,53 @@ test('Local rewrite refers to filename',()=>assert.ok(/script-response-body blin
 const remote=fs.readFileSync(path.join(__dirname,'blink-x.snippet.conf'),'utf8');
 const rule=remote.split('\n').find(s=>s.includes(' url script-response-body '));
 const pattern=new RegExp(rule.split(' url ')[0]);
-test('Public script pinned to v2.0.0',()=>assert.ok(rule.endsWith('/v2.0.0/blink-x.js')));
+function page(options={}) {
+ const elements=[],events={},microtasks=[],attempts=[],stored=new Map();
+ if(options.dismissed)stored.set('blink.qx.dismissed.v2','1');
+ let onMutation=()=>{};
+ function element(tag){
+  const e={tagName:tag.toUpperCase(),children:[],dataset:{},events:{},hidden:false,isConnected:false,
+   setAttribute(k,v){this[k]=v;},appendChild(child){this.children.push(child);child.isConnected=this.isConnected;},
+   addEventListener(k,handler){this.events[k]=handler;},
+   attachShadow(){const s=element('shadow');this.shadow=s;return s;}};
+  elements.push(e);return e;
+ }
+ const document={hidden:!!options.hidden,activeElement:null,createElement:element,
+  addEventListener(k,f){events[k]=f;}};
+ document.documentElement=element('html');document.documentElement.isConnected=true;
+ const location={href:options.url||valid[0][0],assign(url){attempts.push(url);if(options.reentrant&&events.pageshow)events.pageshow();if(options.reject)throw new Error('Safari blocked');}};
+ const window={location};window.top=window;
+ const context={CFG:{label:'在 Blink 中打开',styleNonce:'',autoOpen:options.autoOpen!==false},
+  window,location,document,URL,TextEncoder,Object,
+  sessionStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)},
+  MutationObserver:class{constructor(fn){onMutation=fn;}observe(){}},
+  queueMicrotask:f=>microtasks.push(f),addEventListener:(k,f)=>{events[k]=f;}};
+ vm.runInNewContext('('+fn+')(CFG)',context,{timeout:3000});
+ return {document,location,attempts,stored,elements,window,
+  get host(){return elements.find(e=>e.id==='blink-qx-open-in-app');},
+  get anchor(){return elements.find(e=>e.tagName==='A');},
+  emit:name=>{if(events[name])events[name]();},
+  mutate(){onMutation();while(microtasks.length)microtasks.shift()();},
+  close(){elements.find(e=>e.tagName==='BUTTON').events.click();}};
+}
+test('Response enables automatic mode',()=>assert.ok(run().body.includes('"autoOpen":true')));
+test('First supported page tries correct deep link once',()=>{const p=page();assert.deepStrictEqual(p.attempts,[valid[0][1]]);assert.strictEqual(p.anchor.href,valid[0][1]);assert.strictEqual(p.host.hidden,false);});
+test('Rejected auto launch retains manual anchor',()=>{const p=page({reject:true});assert.strictEqual(p.attempts.length,1);assert.strictEqual(p.anchor.href,valid[0][1]);assert.strictEqual(p.host.hidden,false);});
+test('Cancellation, pageshow, focus and mutations never retry',()=>{const p=page({reject:true});for(let i=0;i<3;i++){p.emit('pageshow');p.emit('focusin');p.emit('visibilitychange');p.mutate();}assert.strictEqual(p.attempts.length,1);});
+test('Returning from Blink does not open it again',()=>{const p=page();p.document.hidden=true;p.emit('visibilitychange');p.document.hidden=false;p.emit('pageshow');p.emit('visibilitychange');assert.strictEqual(p.attempts.length,1);});
+test('Hidden tab waits until visible',()=>{const p=page({hidden:true});assert.strictEqual(p.attempts.length,0);p.document.hidden=false;p.emit('visibilitychange');assert.deepStrictEqual(p.attempts,[valid[0][1]]);});
+test('SPA opens a new destination once and suppresses back loops',()=>{const p=page();p.location.href='https://x.com/i/article/456';p.mutate();assert.deepStrictEqual(p.attempts,[valid[0][1],'blink://open/article/456']);p.location.href=valid[0][0];p.emit('popstate');assert.strictEqual(p.attempts.length,2);});
+test('Query and hash changes do not duplicate a launch',()=>{const p=page();p.location.href+='?s=20#detail';p.mutate();assert.strictEqual(p.attempts.length,1);});
+test('Home does not launch until SPA reaches supported content',()=>{const p=page({url:'https://x.com/home'});assert.strictEqual(p.attempts.length,0);p.location.href='https://x.com/example_user';p.mutate();assert.deepStrictEqual(p.attempts,['blink://open/profile/example_user']);});
+test('Manual mode never automatically opens',()=>{const p=page({autoOpen:false});p.emit('pageshow');p.mutate();assert.strictEqual(p.attempts.length,0);assert.strictEqual(p.anchor.href,valid[0][1]);});
+test('Closing the fallback suppresses subsequent automatic prompts',()=>{const p=page();p.close();p.location.href='https://x.com/i/article/789';p.emit('popstate');assert.strictEqual(p.attempts.length,1);assert.strictEqual(p.host.hidden,true);});
+test('Manual click keeps ordinary anchor navigation and hides on return',()=>{const p=page({reject:true});p.anchor.events.click();assert.strictEqual(p.anchor.href,valid[0][1]);p.emit('pageshow');assert.strictEqual(p.attempts.length,1);assert.strictEqual(p.host.hidden,true);});
+test('Foreground editing defers automatic launch',()=>{const p=page({hidden:true});p.document.hidden=false;p.document.activeElement={tagName:'INPUT'};p.emit('focusin');assert.strictEqual(p.attempts.length,0);p.document.activeElement=null;p.emit('focusout');p.mutate();assert.strictEqual(p.attempts.length,1);});
+test('Auto attempt state is set before reentrant events',()=>assert.strictEqual(page({reentrant:true}).attempts.length,1));
+test('No URLs saved by automatic attempts',()=>assert.strictEqual(page().stored.size,0));
+test('Explicit dismissal is respected after reload',()=>assert.strictEqual(page({dismissed:true}).attempts.length,0));
+test('Fresh reload permits a new test after a blocked attempt',()=>{assert.strictEqual(page({reject:true}).attempts.length,1);assert.strictEqual(page({reject:true}).attempts.length,1);});
+test('Public script pinned to v2.1.0',()=>assert.ok(rule.endsWith('/v2.1.0/blink-x.js')));
 test('No main config sections in remote resource',()=>assert.ok(!/^\[(?:rewrite_local|mitm)\]/m.test(remote)));
 test('Public rewrite includes HTTPS X routes',()=>assert.ok(pattern.test('https://x.com/example_user/status/1234567890123456789')));
 test('API endpoints do not match',()=>assert.ok(!pattern.test('https://x.com/i/api/graphql/anything')));

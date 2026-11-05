@@ -1,18 +1,21 @@
 /*
- * Blink for X · Quantumult X · v2.0.0
- * Opens supported X posts, profiles and articles using Blink's external routes.
+ * Blink for X · Quantumult X · v2.1.0
+ * Tries to open each supported Blink destination once, with a manual fallback.
  * https://github.com/nori5555/blink-qx
- * No network requests, cookies, account tokens or automatic app launch.
+ * No network requests, cookies or account tokens. Safari controls app prompts.
  */
 var LABEL = '在 Blink 中打开';
+var AUTO_OPEN = true; // Try once per destination per page load; false keeps manual mode.
 
 /*==BLINK_BODY_START==*/
 function installBlinkButton(CFG) {
   if (window.top !== window || window.__blinkQXInstalled) return;
   window.__blinkQXInstalled = true;
   var dismissed = false;
-  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v1') === '1'; } catch (e) {}
+  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v2') === '1'; } catch (e) {}
   var host = null, anchor = null, label = null, lastURL = '', scheduled = false;
+  // Memory only: mark before navigation so cancellation/pageshow cannot start a loop.
+  var autoAttempted = Object.create(null);
   var hosts = { 'x.com':1, 'www.x.com':1, 'mobile.x.com':1,
     'twitter.com':1, 'www.twitter.com':1, 'mobile.twitter.com':1 };
   var reserved = { i:1, home:1, explore:1, search:1, notifications:1, messages:1,
@@ -44,7 +47,7 @@ function installBlinkButton(CFG) {
   }
   function dismiss(value) {
     dismissed = value;
-    try { value ? sessionStorage.setItem('blink.qx.dismissed.v1','1') : sessionStorage.removeItem('blink.qx.dismissed.v1'); } catch (e) {}
+    try { value ? sessionStorage.setItem('blink.qx.dismissed.v2','1') : sessionStorage.removeItem('blink.qx.dismissed.v2'); } catch (e) {}
   }
   function create() {
     host = document.createElement('div'); host.id = 'blink-qx-open-in-app';
@@ -65,6 +68,13 @@ function installBlinkButton(CFG) {
     bar.appendChild(anchor); bar.appendChild(close); shadow.appendChild(style); shadow.appendChild(bar);
     document.documentElement.appendChild(host);
   }
+  function tryAutoOpen(target) {
+    if (!CFG.autoOpen || document.hidden || autoAttempted[target.deepLink]) return;
+    autoAttempted[target.deepLink] = true;
+    try { window.location.assign(target.deepLink); } catch (e) {
+      // WebKit can reject a launch without a user gesture. The real anchor stays usable.
+    }
+  }
   function update(force) {
     var url=location.href;
     if (!force && lastURL===url && host && host.isConnected) return;
@@ -75,6 +85,7 @@ function installBlinkButton(CFG) {
     if (!host||!host.isConnected) create();
     anchor.href=target.deepLink; anchor.dataset.kind=target.kind;
     host.hidden=false;
+    tryAutoOpen(target);
   }
   function schedule(){if(scheduled)return;scheduled=true;queueMicrotask(function(){scheduled=false;update(false);});}
   new MutationObserver(schedule).observe(document,{childList:true,subtree:true});
@@ -122,7 +133,7 @@ function blinkQXResponse() {
   function nonce(kind){var c=[''];policies.forEach(function(p){var s=sources(p,kind)||'',m=s.match(/'nonce-([A-Za-z0-9+\/_-]+=*)'/g)||[];m.forEach(function(x){c.push(x.slice(7,-1));});});(body.match(/<(?:script|style)\b[^>]*>/gi)||[]).forEach(function(t){var x=attr(t,'nonce');if(/^[A-Za-z0-9+\/_-]+=*$/.test(x))c.push(x);});for(var i=0;i<c.length;i++)if(allowed(kind,c[i]))return c[i];return null;}
   var sn=nonce('script'),st=nonce('style');
   if(sn===null||st===null){console.log('[Blink QX] CSP blocks safe injection; unchanged.');$done({});return;}
-  var cfg={label:LABEL,styleNonce:st};
+  var cfg={label:LABEL,styleNonce:st,autoOpen:AUTO_OPEN};
   var code='('+installBlinkButton.toString()+')('+JSON.stringify(cfg).replace(/</g,'\\u003c')+');';
   var insert='<script data-blink-qx="1"'+(sn?' nonce="'+sn+'"':'')+'>'+code+'</scr'+'ipt>';
   var out=/<\/body>/i.test(body)?body.replace(/<\/body>/i,function(){return insert+'</body>'; }):/<\/html>/i.test(body)?body.replace(/<\/html>/i,function(){return insert+'</html>'; }):body+insert;

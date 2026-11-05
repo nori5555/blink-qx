@@ -1,10 +1,12 @@
-<!doctype html><html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blink QX · 预览</title><style>body{margin:0;padding:24px;background:#121216;color:#eee;font:16px/1.6 -apple-system,sans-serif}h1{font-size:23px}p{color:#aaa;overflow-wrap:anywhere}a{color:#9bd3ff}</style><h1>Blink QX · 控件预览</h1><p>页面使用虚构 URL 展示控件。只验证界面，不代表 App 页面加载结果。</p><p id="target"></p><p><a href="quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2%2C%20enabled%3Dtrue%22%5D%7D">添加到 Quantumult X</a></p><script>(function(location){
+<!doctype html><html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blink QX · 预览</title><style>body{margin:0;padding:24px;background:#121216;color:#eee;font:16px/1.6 -apple-system,sans-serif}h1{font-size:23px}p{color:#aaa;overflow-wrap:anywhere}a{color:#9bd3ff}</style><h1>Blink QX · 控件预览</h1><p>页面使用虚构 URL 展示控件。只验证界面，不代表 App 页面加载结果。</p><p id="target"></p><p><a href="quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2.1.0%2C%20enabled%3Dtrue%22%5D%7D">添加到 Quantumult X</a></p><script>(function(location){
 function installBlinkButton(CFG) {
   if (window.top !== window || window.__blinkQXInstalled) return;
   window.__blinkQXInstalled = true;
   var dismissed = false;
-  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v1') === '1'; } catch (e) {}
+  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v2') === '1'; } catch (e) {}
   var host = null, anchor = null, label = null, lastURL = '', scheduled = false;
+  // Memory only: mark before navigation so cancellation/pageshow cannot start a loop.
+  var autoAttempted = Object.create(null);
   var hosts = { 'x.com':1, 'www.x.com':1, 'mobile.x.com':1,
     'twitter.com':1, 'www.twitter.com':1, 'mobile.twitter.com':1 };
   var reserved = { i:1, home:1, explore:1, search:1, notifications:1, messages:1,
@@ -36,7 +38,7 @@ function installBlinkButton(CFG) {
   }
   function dismiss(value) {
     dismissed = value;
-    try { value ? sessionStorage.setItem('blink.qx.dismissed.v1','1') : sessionStorage.removeItem('blink.qx.dismissed.v1'); } catch (e) {}
+    try { value ? sessionStorage.setItem('blink.qx.dismissed.v2','1') : sessionStorage.removeItem('blink.qx.dismissed.v2'); } catch (e) {}
   }
   function create() {
     host = document.createElement('div'); host.id = 'blink-qx-open-in-app';
@@ -57,6 +59,13 @@ function installBlinkButton(CFG) {
     bar.appendChild(anchor); bar.appendChild(close); shadow.appendChild(style); shadow.appendChild(bar);
     document.documentElement.appendChild(host);
   }
+  function tryAutoOpen(target) {
+    if (!CFG.autoOpen || document.hidden || autoAttempted[target.deepLink]) return;
+    autoAttempted[target.deepLink] = true;
+    try { window.location.assign(target.deepLink); } catch (e) {
+      // WebKit can reject a launch without a user gesture. The real anchor stays usable.
+    }
+  }
   function update(force) {
     var url=location.href;
     if (!force && lastURL===url && host && host.isConnected) return;
@@ -67,6 +76,7 @@ function installBlinkButton(CFG) {
     if (!host||!host.isConnected) create();
     anchor.href=target.deepLink; anchor.dataset.kind=target.kind;
     host.hidden=false;
+    tryAutoOpen(target);
   }
   function schedule(){if(scheduled)return;scheduled=true;queueMicrotask(function(){scheduled=false;update(false);});}
   new MutationObserver(schedule).observe(document,{childList:true,subtree:true});
@@ -78,4 +88,4 @@ function installBlinkButton(CFG) {
   update(true);
 }
 
- document.getElementById('target').textContent=location.href; installBlinkButton({label:'在 Blink 中打开',styleNonce:''});})({href:'https://x.com/example_user/status/1234567890123456789'});</script></html>
+ document.getElementById('target').textContent=location.href; installBlinkButton({label:'在 Blink 中打开',styleNonce:'',autoOpen:false});})({href:'https://x.com/example_user/status/1234567890123456789'});</script></html>

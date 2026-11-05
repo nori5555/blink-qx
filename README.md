@@ -1,77 +1,63 @@
-# Blink for X · Quantumult X
+# Blink for X · Quantumult X v2.0.0
 
-在 X/Twitter 网页右下角加一个 **Blink** 按钮，点开后进入 Blink 首页或搜索页。脚本已托管，订阅不需要替换任何占位符。
+在 Safari 的 X/Twitter 帖子、个人主页、文章页面显示“在 Blink 中打开”。点击当前页面的按钮，通过 Blink 外部路由打开对应内容。
 
-仓库：[nori5555/blink-qx](https://github.com/nori5555/blink-qx) · Blink：[TestFlight](https://testflight.apple.com/join/MtRpthjp)
+## 安装
 
-## 直接安装
-
-Quantumult X → 设置 → **重写 → 引用 → 添加**，粘贴正式版地址：
+QX → 设置 → **重写 → 引用 → 添加**，粘贴：
 
 ```text
 https://raw.githubusercontent.com/nori5555/blink-qx/main/blink-x.snippet.conf
 ```
 
-然后开启重写和 MITM，确认 QX CA 证书已安装并信任。在 Safari 新开/刷新 X 页面，右下角出现 Blink 按钮。
+[一键添加到 QX](quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2%2C%20enabled%3Dtrue%22%5D%7D)
 
-- 资源内含脚本真实直链和 `hostname`，按 QX 官方 remote snippet 格式组织；不是整份配置，不要拿它替换主配置。
-- 若 GitHub raw 无法访问，检查 QX 对 GitHub 的代理策略。
-- 正式版和测试版二选一，不要同时启用，避免重叠重写。
+1. 停用旧版 Blink 重写资源，避免相同规则重叠；只启用这一份。
+2. 开启重写和 MitM；QX 的 CA 证书须安装并信任。
+3. 更新资源后，关闭旧 X 标签页，在 Safari 新开一个帖子或个人主页。支持的页面底部会显示按钮。
+4. 点击按钮并允许 iOS 打开 Blink。首页、搜索、登录等非内容页面不显示帖子跳转按钮。
 
-## 功能边界
+资源自带 hostname 和脚本 HTTPS 地址；v2.0.0 固定版本脚本地址可避开 v1 缓存。添加资源保留现有配置，不要用 snippet 覆盖主配置。
 
-| 功能 | 状态 |
+## 支持的路由
+
+| 页面 | Blink 路由 |
 |---|---|
-| `blink://` 拉起 App | 用户真机验证 |
-| `blink://widget/home` 进入首页 | 开发者确认 |
-| `blink://widget/search` 进入搜索页 | 开发者确认；没有确认携带搜索词的参数 |
-| 当前帖子/个人主页/文章直接打开 | **尚未确认深链格式，不宣称已实现** |
-| x.com Universal Link 关联到 Blink | 未核验 AASA + App entitlement；HTTP 重定向不能证明有或没有 |
+| 帖子 | `blink://open/post/{ID}` |
+| 帖子图片 | `blink://open/post/{ID}/photo/{1-4}` |
+| 帖子视频 | `blink://open/post/{ID}/video/{1-4}` |
+| 个人主页 | `blink://open/profile/{用户名}` |
+| 文章 | `blink://open/article/{ID}` |
 
-旧版说明里“iMazing 提取就是 IPA”“Info.plist 含 associated-domains”“HTTP 重定向证明无 Universal Link”“猜的路由全进首页说明不存在深链”均不严谨。此版删除这些错误结论。
+支持 `https://x.com`、`www.x.com`、`mobile.x.com` 及对应 `twitter.com` 主机。用户名 1–15 字符；ID 保持字符串不转 Number，避免丢失精度。页面内 SPA 切换后同步更新链接。
 
-QX 在网页响应里注入 UI，不是 Safari Web Extension；自定义 scheme 通常需要用户点击并允许系统跳转。不会冒充官方扩展，不会修改 App 或下载 TF 安装包。
+这次已移除旧版的所有猜测路由。`blink-x-test.snippet.conf` 仅保留为旧订阅地址兼容入口，内容与正式版相同，请二选一。
 
-## 可选：深链诊断测试版
+## 行为与隐私
 
-只在需要试候选参数时使用这个资源，先停用正式版：
+- 用户点击真实 `<a href>` 才打开 Blink；不在页面加载时自动跳转。
+- 不请求额外网络，不读取 Cookie/账户凭据，不上传 URL 或浏览记录。
+- 仅在 `sessionStorage` 存一个关闭按钮的布尔标记，不存帖子链接。
+- 保留响应头和 CSP，复用允许的 script/style nonce；冲突或不支持的策略下原样放行。
+- 只改成功的 HTML GET 响应；不改 API JSON、POST、跳转和媒体二进制。
+- 这里仅发布插件、配置、说明和虚构输入的测试代码，不分发应用安装包、签名材料、抓包或账户数据。
 
-```text
-https://raw.githubusercontent.com/nori5555/blink-qx/main/blink-x-test.snippet.conf
-```
+## 本地脚本备用方式
 
-测试版的帖子页显示 10 条未验证候选 + 2 个确认入口。仅 **首页/搜索的准确 URL** 标绿，`widget/home?url=...` 并未确认。候选返回首页只表示这一格式没有命中，不能推导 App 不支持帖子深链。
+如果设备加载远程脚本失败，把 [blink-x.js](https://raw.githubusercontent.com/nori5555/blink-qx/v2.0.0/blink-x.js) 存到“我的 iPhone/Quantumult X/Scripts”或“iCloud Drive/Quantumult X/Scripts”，停用远程资源，再按 `main-config-example.conf` 合并规则与 hostname。不要整份覆盖自己的配置。
 
-拿到开发者给出的帖子格式后，在脚本顶部填写 `POST_TEMPLATE`，再运行 `node build.js` 更新派生文件。模板支持 `{URL}` 原始当前 URL、`{ENC}` URL 编码后的 URL、`{ID}` 帖子 ID、`{USER}` 用户名。传 URL 查询参数时优先用 `{ENC}`，避免 `&` 截断参数。正式版配置有效模板后，点击悬浮按钮直接打开该模板。
+## 验证范围
 
-## 技术行为与隐私
+路由来自已分析版本使用的外部链接格式。回归覆盖 URL 校验、精度、HTML 注入、CSP、幂等性、订阅规则与旧地址兼容性；网页控件已做浏览器检查。自动测试不代替 QX/iOS Safari/Blink 的设备验收。
 
-- 只改匹配路径的成功 HTML GET 文档；不改 API JSON、POST、3xx、图片/视频响应。
-- 覆盖根页、常见入口、帖子、个人主页及 `/i/article/<id>`；页面内 SPA 导航继续使用按钮。
-- **保留原 CSP 与所有响应头**。复用被 `script-src[-elem]` 允许的 nonce，并处理 style nonce；若存在冲突策略则原样放行，不为了按钮关闭整页安全策略。
-- 通过 Shadow DOM 隔离样式；1.5 秒检查一次按钮是否被 SPA 移除。
-- 不使用 Cookie、不发额外 HTTP 请求、不上传链接、不读取浏览历史。诊断版只在当前 `sessionStorage` 记录最后点击的候选，正式版不记。
-- MITM 是 QX 本地 TLS 解密；账户仍需正确安装和信任自己的证书。响应编码/长度由 QX 处理，视频图片通常在 twimg 域名，本模块没添加它们。
+如果没有按钮，检查 QX 资源更新、MitM 命中、本地脚本/远程脚本加载与 CSP 日志。按钮被关闭后该 Safari 标签页会话内隐藏，新标签页可以重新显示。若按钮存在但 App 未直达，核对 App 是否支持表中的路由。
 
-QX **支持非越狱的本地脚本**：保存在“我的 iPhone / Quantumult X / Scripts”或“iCloud Drive / Quantumult X / Scripts”，规则尾部写脚本文件名。远程订阅已经托管，正常安装无需这个步骤。
-
-## 测试与开发
+开发命令：
 
 ```sh
 node build.js
 node --check blink-x.js
-node --check blink-x-test.js
 node test_qx.js
 ```
 
-本地 Node 模拟和浏览器验证覆盖配置匹配、HTML 注入、CSP nonce、重复注入、测试/正式 UI；不等同于 QX 真机与 Blink 目标页面验收。真实帖子直达仍以 App 真机结果为准。
-
-### 文件
-
-- `blink-x.snippet.conf` / `blink-x.js`：正式版订阅及脚本
-- `blink-x-test.snippet.conf` / `blink-x-test.js`：独立候选测试版
-- `build.js`：生成派生资源与 `preview.html`
-- `test_qx.js`：自动化回归
-- `preview.html`：本地 UI 预览，`?test=1` 开测试模式
-
-官方依据：[QX 配置样例](https://github.com/crossutility/Quantumult-X/blob/master/sample.conf) · [QX remote snippet](https://github.com/crossutility/Quantumult-X/blob/master/sample-import-rewrite.snippet) · [Apple Universal Links](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
+官方配置格式：[remote rewrite snippet](https://github.com/crossutility/Quantumult-X/blob/master/sample-import-rewrite.snippet) · [QX URL scheme](https://github.com/crossutility/Quantumult-X/blob/master/url-scheme.md)

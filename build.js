@@ -1,32 +1,24 @@
-const fs = require('fs');
-const src = fs.readFileSync('blink-x.js', 'utf8');
-const base = 'https://raw.githubusercontent.com/nori5555/blink-qx/main/';
-const host = '(?:www\\.|mobile\\.|m\\.)?(?:x|twitter)\\.com';
-const prefix = '^https:\\/\\/' + host + '\\/';
-const rules = [
-  prefix + '(?:[?#].*)?$',
-  prefix + '(?:[A-Za-z0-9_]{1,20}\\/status|i\\/(?:web\\/status|status|article))\\/\\d+(?:[\\/?#].*)?$',
-  prefix + '@?[A-Za-z0-9_]{1,20}(?:\\/(?:with_replies|media|highlights|articles))?\\/?(?:[?#].*)?$'
-];
-const hosts = 'x.com, www.x.com, m.x.com, mobile.x.com, twitter.com, www.twitter.com, m.twitter.com, mobile.twitter.com';
-function snippet(script, test) {
-  return '# Blink for X · Quantumult X · ' + (test ? '诊断测试版（候选未经确认）' : '正式版（首页/搜索）') + '\n' +
-    '# https://github.com/nori5555/blink-qx\n' +
-    '# 添加到 重写 → 引用；需要开启重写、MITM 并信任证书。\n' +
-    'hostname = ' + hosts + '\n\n' +
-    rules.map(r => r + ' url script-response-body ' + base + script).join('\n') + '\n';
-}
-fs.writeFileSync('blink-x.snippet.conf', snippet('blink-x.js', false));
-fs.writeFileSync('blink-x-test.snippet.conf', snippet('blink-x-test.js', true));
-fs.writeFileSync('blink-x-test.js', src.replace('var SHOW_TEST_CANDIDATES = false;', 'var SHOW_TEST_CANDIDATES = true;'));
-const fn = src.match(/\/\*==INJECT:START==\*\/([\s\S]*?)\/\*==INJECT:END==\*\//)[1];
-const preview = `<!doctype html><html lang="zh-Hans"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Blink QX · 预览</title>
-<style>body{margin:0;background:#000;color:#eee;font:16px/1.6 -apple-system,sans-serif}main{padding:24px}h1{font-size:24px}p{color:#a8a8ae}.post{border:1px solid #333;padding:18px;border-radius:14px}</style></head><body>
-<main><h1>Blink for X · QX</h1><p>点右下角 Blink 查看首页/搜索入口。仅模拟网页 UI，不代表真实 App 路由验证。</p>
-<div class="post">@example_user<br>虚构测试数据。<br>1234567890123456789</div></main>
-<script>${fn}
-blinkInject({postTemplate:'',testCandidates:new URL(location.href).searchParams.get('test')==='1',home:'blink://widget/home',search:'blink://widget/search',label:'Blink',styleNonce:''});</script>
-</body></html>`;
-fs.writeFileSync('preview.html', preview);
-console.log('Generated normal/test rewrite snippets, test script and preview.');
+const fs=require('fs'),path=require('path');
+const root=__dirname;
+const write=(name,text)=>fs.writeFileSync(path.join(root,name),text);
+const version='v2.0.0';
+const src=fs.readFileSync(path.join(root,'blink-x.js'),'utf8');
+const base='https://raw.githubusercontent.com/nori5555/blink-qx/';
+const url=base+'main/blink-x.snippet.conf';
+const hosts='x.com, www.x.com, mobile.x.com, twitter.com, www.twitter.com, mobile.twitter.com';
+const pattern='^https:\\/\\/(?:www\\.|mobile\\.)?(?:x|twitter)\\.com\\/(?!i\\/api(?:\\/|$)|api(?:\\/|$)).*';
+const rule=script=>pattern+' url script-response-body '+script;
+const prefix='# Blink for X · Quantumult X · '+version+'\n# 帖子 / 个人主页 / 文章 / 图片与视频定位\n# 重写 → 引用添加；开启 MitM 并信任本机证书。\nhostname = '+hosts+'\n\n';
+const remote=prefix+rule(base+version+'/blink-x.js')+'\n';
+write('blink-x.snippet.conf',remote);
+write('blink-x-local.snippet.conf',prefix+rule('blink-x.js')+'\n');
+// Retire the old candidate tester while preserving existing subscriber URLs.
+write('blink-x-test.js',src);
+write('blink-x-test.snippet.conf','# 兼容旧测试版地址；已移除猜测路由，与正式版相同，二者只启用一个。\n'+remote);
+write('main-config-example.conf','# 只把下面内容合并进现有同名段落，不要覆盖主配置。\n[rewrite_local]\n'+rule('blink-x.js')+'\n\n[mitm]\nhostname = '+hosts+'\n');
+const params={rewrite_remote:[url+', tag=Blink for X v2, enabled=true']};
+const install='quantumult-x:///add-resource?remote-resource='+encodeURIComponent(JSON.stringify(params));
+write('install-url.txt',install+'\n');
+const fn=src.match(/\/\*==BLINK_BODY_START==\*\/([\s\S]*?)\/\*==BLINK_BODY_END==\*\//)[1];
+write('preview.html',`<!doctype html><html lang="zh-Hans"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Blink QX · 预览</title><style>body{margin:0;padding:24px;background:#121216;color:#eee;font:16px/1.6 -apple-system,sans-serif}h1{font-size:23px}p{color:#aaa;overflow-wrap:anywhere}a{color:#9bd3ff}</style><h1>Blink QX · 控件预览</h1><p>页面使用虚构 URL 展示控件。只验证界面，不代表 App 页面加载结果。</p><p id="target"></p><p><a href="${install}">添加到 Quantumult X</a></p><script>(function(location){${fn}\n document.getElementById('target').textContent=location.href; installBlinkButton({label:'在 Blink 中打开',styleNonce:''});})({href:'https://x.com/example_user/status/1234567890123456789'});</script></html>`);
+console.log('Built '+version+' remote/local snippets and add-resource link.');

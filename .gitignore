@@ -1,13 +1,26 @@
-# No credentials, packet captures or temporary artifacts in this public repository.
+# Only plugin source, configuration, documentation and synthetic tests belong here.
 .env
 .env.*
 *.ipa
+*.app/
+*.appex/
+*.dylib
+*.mobileprovision
+*.p12
+*.pfx
+*.pem
+*.key
 *.har
 *.pcap
 *.pcapng
 *.imazingapp
 *.log
+*.zip
 .DS_Store
 node_modules/
 artifacts/
 credentials/
+evidence/
+extracted/
+analysis/
+uploads/

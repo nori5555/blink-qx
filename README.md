@@ -1,4 +1,4 @@
-# Blink for X · Quantumult X v2.1.2
+# blink增强 · Quantumult X v2.1.2
 
 进入支持的 X/Twitter 帖子、个人主页或文章时，自动尝试打开 Blink 一次。底部真实链接仍可手动打开。
 
@@ -18,7 +18,9 @@ QX → 设置 → **重写 → 引用 → 添加**，粘贴：
 https://raw.githubusercontent.com/nori5555/blink-qx/main/blink-x.snippet.conf
 ```
 
-[一键添加到 QX](quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2.1.2%2C%20enabled%3Dtrue%22%5D%7D)
+[一键添加「blink增强」到 QX](quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3Dblink%E5%A2%9E%E5%BC%BA%2C%20enabled%3Dtrue%22%5D%7D)
+
+一键添加会预填资源名「blink增强」。已安装的旧资源若保留原名称，在资源编辑页把名称改成「blink增强」即可，不用重复启用。
 
 1. 停用旧版 Blink 重写资源，避免相同规则重叠；只启用这一份。
 2. 开启重写和 MitM；QX 的 CA 证书须安装并信任。

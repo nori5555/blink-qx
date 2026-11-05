@@ -1,7 +1,7 @@
 const fs=require('fs'),path=require('path');
 const root=__dirname;
 const write=(name,text)=>fs.writeFileSync(path.join(root,name),text);
-const version='v2.1.0';
+const version='v2.1.1';
 const src=fs.readFileSync(path.join(root,'blink-x.js'),'utf8');
 const base='https://raw.githubusercontent.com/nori5555/blink-qx/';
 const url=base+'main/blink-x.snippet.conf';
@@ -16,7 +16,7 @@ write('blink-x-local.snippet.conf',prefix+rule('blink-x.js')+'\n');
 write('blink-x-test.js',src);
 write('blink-x-test.snippet.conf','# 兼容旧测试版地址；已移除猜测路由，与正式版相同，二者只启用一个。\n'+remote);
 write('main-config-example.conf','# 只把下面内容合并进现有同名段落，不要覆盖主配置。\n[rewrite_local]\n'+rule('blink-x.js')+'\n\n[mitm]\nhostname = '+hosts+'\n');
-const params={rewrite_remote:[url+', tag=Blink for X v2.1.0, enabled=true']};
+const params={rewrite_remote:[url+', tag=Blink for X v2.1.1, enabled=true']};
 const install='quantumult-x:///add-resource?remote-resource='+encodeURIComponent(JSON.stringify(params));
 write('install-url.txt',install+'\n');
 const fn=src.match(/\/\*==BLINK_BODY_START==\*\/([\s\S]*?)\/\*==BLINK_BODY_END==\*\//)[1];

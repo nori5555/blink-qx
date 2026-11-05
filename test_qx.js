@@ -56,13 +56,22 @@ function page(options={}) {
   const e={tagName:tag.toUpperCase(),children:[],dataset:{},events:{},hidden:false,isConnected:false,
    setAttribute(k,v){this[k]=v;},appendChild(child){this.children.push(child);child.isConnected=this.isConnected;},
    addEventListener(k,handler){this.events[k]=handler;},
+   click(){
+    const event={isTrusted:false,defaultPrevented:false,preventDefault(){this.defaultPrevented=true;}};
+    if(this.events.click)this.events.click(event);
+    if(this.tagName==='A'&&!event.defaultPrevented){
+     attempts.push(this.href);
+     if(options.reentrant&&events.pageshow)events.pageshow();
+     if(options.reject)throw new Error('Browser blocked scripted anchor');
+    }
+   },
    attachShadow(){const s=element('shadow');this.shadow=s;return s;}};
   elements.push(e);return e;
  }
  const document={hidden:!!options.hidden,activeElement:null,createElement:element,
   addEventListener(k,f){events[k]=f;}};
  document.documentElement=element('html');document.documentElement.isConnected=true;
- const location={href:options.url||valid[0][0],assign(url){attempts.push(url);if(options.reentrant&&events.pageshow)events.pageshow();if(options.reject)throw new Error('Safari blocked');}};
+ const location={href:options.url||valid[0][0],assign(){throw new Error('Unexpected location.assign');}};
  const window={location};window.top=window;
  const context={CFG:{label:'在 Blink 中打开',styleNonce:'',autoOpen:options.autoOpen!==false},
   window,location,document,URL,TextEncoder,Object,
@@ -94,7 +103,10 @@ test('Auto attempt state is set before reentrant events',()=>assert.strictEqual(
 test('No URLs saved by automatic attempts',()=>assert.strictEqual(page().stored.size,0));
 test('Explicit dismissal is respected after reload',()=>assert.strictEqual(page({dismissed:true}).attempts.length,0));
 test('Fresh reload permits a new test after a blocked attempt',()=>{assert.strictEqual(page({reject:true}).attempts.length,1);assert.strictEqual(page({reject:true}).attempts.length,1);});
-test('Public script pinned to v2.1.0',()=>assert.ok(rule.endsWith('/v2.1.0/blink-x.js')));
+test('Automatic attempt uses the manual anchor instead of location navigation',()=>assert.ok(fn.includes('anchor.click()')&&!/window\.location|location\.assign/.test(fn)));
+test('Synthetic auto click does not persist manual dismissal',()=>{const p=page({reject:true});assert.strictEqual(p.stored.size,0);p.emit('pageshow');assert.strictEqual(p.host.hidden,false);});
+test('Synthetic auto flag resets before the next real click',()=>{const p=page({reject:true});p.anchor.events.click({isTrusted:true});assert.strictEqual(p.stored.get('blink.qx.dismissed.v2'),'1');});
+test('Public script pinned to v2.1.1',()=>assert.ok(rule.endsWith('/v2.1.1/blink-x.js')));
 test('No main config sections in remote resource',()=>assert.ok(!/^\[(?:rewrite_local|mitm)\]/m.test(remote)));
 test('Public rewrite includes HTTPS X routes',()=>assert.ok(pattern.test('https://x.com/example_user/status/1234567890123456789')));
 test('API endpoints do not match',()=>assert.ok(!pattern.test('https://x.com/i/api/graphql/anything')));

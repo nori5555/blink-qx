@@ -1,6 +1,6 @@
-# Blink for X · Quantumult X v2.1.0
+# Blink for X · Quantumult X v2.1.1
 
-在 Safari 进入支持的 X/Twitter 帖子、个人主页或文章时，自动尝试打开 Blink 一次。Safari 是否显示系统确认框由浏览器决定；自动跳转被拦截时，底部“在 Blink 中打开”按钮仍可手动使用。
+进入支持的 X/Twitter 帖子、个人主页或文章时，自动尝试打开 Blink 一次。v2.1.1 改为调用底部同一个链接的 `anchor.click()`，替代 v2.1.0 的 `location.assign()`，用于测试第三方浏览器的外部链接处理差异。脚本点击仍不是真实触摸手势，浏览器可能拦截或继续经 Safari 中转，尚未确认能消除中转；底部按钮仍可手动使用。
 
 ## 安装
 
@@ -10,14 +10,14 @@ QX → 设置 → **重写 → 引用 → 添加**，粘贴：
 https://raw.githubusercontent.com/nori5555/blink-qx/main/blink-x.snippet.conf
 ```
 
-[一键添加到 QX](quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2.1.0%2C%20enabled%3Dtrue%22%5D%7D)
+[一键添加到 QX](quantumult-x:///add-resource?remote-resource=%7B%22rewrite_remote%22%3A%5B%22https%3A%2F%2Fraw.githubusercontent.com%2Fnori5555%2Fblink-qx%2Fmain%2Fblink-x.snippet.conf%2C%20tag%3DBlink%20for%20X%20v2.1.1%2C%20enabled%3Dtrue%22%5D%7D)
 
 1. 停用旧版 Blink 重写资源，避免相同规则重叠；只启用这一份。
 2. 开启重写和 MitM；QX 的 CA 证书须安装并信任。
 3. 更新资源后，关闭旧 X 标签页，在 Safari 新开一个帖子或个人主页。页面会自动请求打开 Blink 一次。
 4. 如果没有弹系统确认框，点击底部按钮；Safari 可能拦截缺少用户手势的自动 scheme 导航。首页、搜索、登录等非内容页面不自动打开。
 
-资源自带 hostname 和脚本 HTTPS 地址；v2.1.0 固定脚本地址可避开旧版缓存。添加资源保留现有配置，不要用 snippet 覆盖主配置。
+资源自带 hostname 和脚本 HTTPS 地址；v2.1.1 固定脚本地址可避开旧版缓存。添加资源保留现有配置，不要用 snippet 覆盖主配置。
 
 ## 支持的路由
 
@@ -45,7 +45,7 @@ https://raw.githubusercontent.com/nori5555/blink-qx/main/blink-x.snippet.conf
 
 ## 本地脚本备用方式
 
-如果设备加载远程脚本失败，把 [blink-x.js](https://raw.githubusercontent.com/nori5555/blink-qx/v2.1.0/blink-x.js) 存到“我的 iPhone/Quantumult X/Scripts”或“iCloud Drive/Quantumult X/Scripts”，停用远程资源，再按 `main-config-example.conf` 合并规则与 hostname。不要整份覆盖自己的配置。
+如果设备加载远程脚本失败，把 [blink-x.js](https://raw.githubusercontent.com/nori5555/blink-qx/v2.1.1/blink-x.js) 存到“我的 iPhone/Quantumult X/Scripts”或“iCloud Drive/Quantumult X/Scripts”，停用远程资源，再按 `main-config-example.conf` 合并规则与 hostname。不要整份覆盖自己的配置。
 
 需要恢复纯手动模式，可将本地脚本顶部 `AUTO_OPEN` 改成 `false`，或使用固定的 [v2.0.0 手动版订阅](https://raw.githubusercontent.com/nori5555/blink-qx/v2.0.0/blink-x.snippet.conf)；两种资源只启用一个。
 

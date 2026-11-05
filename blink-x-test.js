@@ -1,8 +1,8 @@
 /*
- * Blink for X · Quantumult X · v2.1.0
- * Tries to open each supported Blink destination once, with a manual fallback.
+ * Blink for X · Quantumult X · v2.1.1
+ * Tries the same Blink anchor used by the manual button once per destination.
  * https://github.com/nori5555/blink-qx
- * No network requests, cookies or account tokens. Safari controls app prompts.
+ * No network requests, cookies or account tokens. The browser controls app prompts.
  */
 var LABEL = '在 Blink 中打开';
 var AUTO_OPEN = true; // Try once per destination per page load; false keeps manual mode.
@@ -16,6 +16,7 @@ function installBlinkButton(CFG) {
   var host = null, anchor = null, label = null, lastURL = '', scheduled = false;
   // Memory only: mark before navigation so cancellation/pageshow cannot start a loop.
   var autoAttempted = Object.create(null);
+  var autoClickInProgress = false;
   var hosts = { 'x.com':1, 'www.x.com':1, 'mobile.x.com':1,
     'twitter.com':1, 'www.twitter.com':1, 'mobile.twitter.com':1 };
   var reserved = { i:1, home:1, explore:1, search:1, notifications:1, messages:1,
@@ -62,7 +63,9 @@ function installBlinkButton(CFG) {
     var brand = document.createElement('span'); brand.className = 'brand'; brand.textContent = 'B'; brand.setAttribute('aria-hidden','true');
     var copy = document.createElement('span'); label = document.createElement('span'); label.className = 'copy'; label.textContent = CFG.label; copy.appendChild(label);
     anchor.appendChild(brand); anchor.appendChild(copy);
-    anchor.addEventListener('click', function(){ dismiss(true); });
+    anchor.addEventListener('click', function(){
+      if (!autoClickInProgress) dismiss(true);
+    });
     var close = document.createElement('button'); close.type='button'; close.textContent='×'; close.setAttribute('aria-label','关闭'); close.title='关闭';
     close.addEventListener('click',function(){dismiss(true);host.hidden=true;});
     bar.appendChild(anchor); bar.appendChild(close); shadow.appendChild(style); shadow.appendChild(bar);
@@ -71,8 +74,11 @@ function installBlinkButton(CFG) {
   function tryAutoOpen(target) {
     if (!CFG.autoOpen || document.hidden || autoAttempted[target.deepLink]) return;
     autoAttempted[target.deepLink] = true;
-    try { window.location.assign(target.deepLink); } catch (e) {
-      // WebKit can reject a launch without a user gesture. The real anchor stays usable.
+    autoClickInProgress = true;
+    try { anchor.click(); } catch (e) {
+      // A scripted click still lacks a real user gesture and may be blocked.
+    } finally {
+      autoClickInProgress = false;
     }
   }
   function update(force) {

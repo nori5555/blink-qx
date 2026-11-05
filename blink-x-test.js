@@ -1,22 +1,15 @@
 /*
- * Blink for X · Quantumult X · v2.1.1
- * Tries the same Blink anchor used by the manual button once per destination.
+ * Blink for X · Quantumult X · v2.1.2
+ * Opens Blink once per destination and guards X's separate Safari redirect.
  * https://github.com/nori5555/blink-qx
  * No network requests, cookies or account tokens. The browser controls app prompts.
  */
 var LABEL = '在 Blink 中打开';
 var AUTO_OPEN = true; // Try once per destination per page load; false keeps manual mode.
+var GUARD_X_SAFARI_REDIRECT = true;
 
-/*==BLINK_BODY_START==*/
-function installBlinkButton(CFG) {
-  if (window.top !== window || window.__blinkQXInstalled) return;
-  window.__blinkQXInstalled = true;
-  var dismissed = false;
-  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v2') === '1'; } catch (e) {}
-  var host = null, anchor = null, label = null, lastURL = '', scheduled = false;
-  // Memory only: mark before navigation so cancellation/pageshow cannot start a loop.
-  var autoAttempted = Object.create(null);
-  var autoClickInProgress = false;
+/*==BLINK_ROUTE_START==*/
+function parseBlinkTarget(raw) {
   var hosts = { 'x.com':1, 'www.x.com':1, 'mobile.x.com':1,
     'twitter.com':1, 'www.twitter.com':1, 'mobile.twitter.com':1 };
   var reserved = { i:1, home:1, explore:1, search:1, notifications:1, messages:1,
@@ -25,27 +18,54 @@ function installBlinkButton(CFG) {
     help:1, support:1, hashtag:1, communities:1, premium:1, subscriptions:1 };
   function validID(s) { return /^[1-9][0-9]{0,19}$/.test(s); }
   function validHandle(s) { return /^[A-Za-z0-9_]{1,15}$/.test(s) && !Object.prototype.hasOwnProperty.call(reserved, s.toLowerCase()); }
-  function parse(raw) {
-    if (typeof raw !== 'string' || new TextEncoder().encode(raw).length > 2048) return null;
-    var source = raw.match(/^https:\/\/([^/?#]*)([^?#]*)/i);
-    if (!source || /[:@\\\s]/.test(source[1]) || /%|\/\/|\\|(?:^|\/)\.{1,2}(?:\/|$)/.test(source[2])) return null;
-    var u;
-    try { u = new URL(raw); } catch (e) { return null; }
-    if (u.protocol !== 'https:' || !Object.prototype.hasOwnProperty.call(hosts, u.hostname) || u.username || u.password || u.port || /%|\/\//.test(u.pathname)) return null;
-    var p = u.pathname.split('/').filter(Boolean), kind, path, pos;
-    if (p.length === 1 && validHandle(p[0])) return {kind:'profile', deepLink:'blink://open/profile/' + p[0]};
-    if (p.length === 3 && p[0] === 'i' && p[1] === 'article' && validID(p[2]))
-      return {kind:'article', deepLink:'blink://open/article/' + p[2]};
-    if (p.length >= 3 && (validHandle(p[0]) || p[0] === 'i') && p[1] === 'status') pos = 2;
-    else if (p.length >= 4 && p[0] === 'i' && p[1] === 'web' && p[2] === 'status') pos = 3;
-    else return null;
-    if (!validID(p[pos])) return null;
-    path = 'blink://open/post/' + p[pos];
-    if (p.length === pos + 3 && (p[pos+1] === 'photo' || p[pos+1] === 'video') && /^[1-4]$/.test(p[pos+2]))
-      path += '/' + p[pos+1] + '/' + p[pos+2];
-    else if (p.length !== pos + 1) return null;
-    return {kind:'post', deepLink:path};
-  }
+  if (typeof raw !== 'string' || new TextEncoder().encode(raw).length > 2048) return null;
+  var source = raw.match(/^https:\/\/([^/?#]*)([^?#]*)/i);
+  if (!source || /[:@\\\s]/.test(source[1]) || /%|\/\/|\\|(?:^|\/)\.{1,2}(?:\/|$)/.test(source[2])) return null;
+  var u;
+  try { u = new URL(raw); } catch (e) { return null; }
+  if (u.protocol !== 'https:' || !Object.prototype.hasOwnProperty.call(hosts, u.hostname) || u.username || u.password || u.port || /%|\/\//.test(u.pathname)) return null;
+  var p = u.pathname.split('/').filter(Boolean), path, pos;
+  if (p.length === 1 && validHandle(p[0])) return {kind:'profile', deepLink:'blink://open/profile/' + p[0]};
+  if (p.length === 3 && p[0] === 'i' && p[1] === 'article' && validID(p[2]))
+    return {kind:'article', deepLink:'blink://open/article/' + p[2]};
+  if (p.length >= 3 && (validHandle(p[0]) || p[0] === 'i') && p[1] === 'status') pos = 2;
+  else if (p.length >= 4 && p[0] === 'i' && p[1] === 'web' && p[2] === 'status') pos = 3;
+  else return null;
+  if (!validID(p[pos])) return null;
+  path = 'blink://open/post/' + p[pos];
+  if (p.length === pos + 3 && (p[pos+1] === 'photo' || p[pos+1] === 'video') && /^[1-4]$/.test(p[pos+2]))
+    path += '/' + p[pos+1] + '/' + p[pos+2];
+  else if (p.length !== pos + 1) return null;
+  return {kind:'post', deepLink:path};
+}
+/*==BLINK_ROUTE_END==*/
+
+/*==BLINK_GUARD_START==*/
+function guardXSafariRedirect(parse) {
+  if (window.top !== window) return;
+  try {
+    if (!parse(location.href)) return;
+    var url = new URL(location.href);
+    if (url.searchParams.get('ct') || url.searchParams.has('redirect_after_login')) return;
+    url.searchParams.set('ct', 'blink-qx');
+    if (!parse(url.href)) return;
+    // X checks this existing attribution parameter before its external-WebView redirect.
+    // Replace this history entry in place; do not navigate or add another history entry.
+    history.replaceState(history.state, '', url.href);
+  } catch (e) { /* Restricted history access leaves the original page untouched. */ }
+}
+/*==BLINK_GUARD_END==*/
+
+/*==BLINK_BODY_START==*/
+function installBlinkButton(CFG, parse) {
+  if (window.top !== window || window.__blinkQXInstalled) return;
+  window.__blinkQXInstalled = true;
+  var dismissed = false;
+  try { dismissed = sessionStorage.getItem('blink.qx.dismissed.v2') === '1'; } catch (e) {}
+  var host = null, anchor = null, label = null, lastURL = '', scheduled = false;
+  // Memory only: mark before navigation so cancellation/pageshow cannot start a loop.
+  var autoAttempted = Object.create(null);
+  var autoClickInProgress = false;
   function dismiss(value) {
     dismissed = value;
     try { value ? sessionStorage.setItem('blink.qx.dismissed.v2','1') : sessionStorage.removeItem('blink.qx.dismissed.v2'); } catch (e) {}
@@ -63,11 +83,13 @@ function installBlinkButton(CFG) {
     var brand = document.createElement('span'); brand.className = 'brand'; brand.textContent = 'B'; brand.setAttribute('aria-hidden','true');
     var copy = document.createElement('span'); label = document.createElement('span'); label.className = 'copy'; label.textContent = CFG.label; copy.appendChild(label);
     anchor.appendChild(brand); anchor.appendChild(copy);
-    anchor.addEventListener('click', function(){
+    anchor.addEventListener('click', function(event){
+      // Keep the link's default action, but do not send this click into X's bubble handlers.
+      event.stopPropagation();
       if (!autoClickInProgress) dismiss(true);
     });
     var close = document.createElement('button'); close.type='button'; close.textContent='×'; close.setAttribute('aria-label','关闭'); close.title='关闭';
-    close.addEventListener('click',function(){dismiss(true);host.hidden=true;});
+    close.addEventListener('click',function(event){event.stopPropagation();dismiss(true);host.hidden=true;});
     bar.appendChild(anchor); bar.appendChild(close); shadow.appendChild(style); shadow.appendChild(bar);
     document.documentElement.appendChild(host);
   }
@@ -140,8 +162,22 @@ function blinkQXResponse() {
   var sn=nonce('script'),st=nonce('style');
   if(sn===null||st===null){console.log('[Blink QX] CSP blocks safe injection; unchanged.');$done({});return;}
   var cfg={label:LABEL,styleNonce:st,autoOpen:AUTO_OPEN};
-  var code='('+installBlinkButton.toString()+')('+JSON.stringify(cfg).replace(/</g,'\\u003c')+');';
-  var insert='<script data-blink-qx="1"'+(sn?' nonce="'+sn+'"':'')+'>'+code+'</scr'+'ipt>';
+  var route='('+parseBlinkTarget.toString()+')';
+  var code='('+installBlinkButton.toString()+')('+JSON.stringify(cfg).replace(/</g,'\\u003c')+','+route+');';
+  var nonceAttr=sn?' nonce="'+sn+'"':'';
+  if (GUARD_X_SAFARI_REDIRECT) {
+    var early='<script data-blink-qx-guard="1"'+nonceAttr+'>'+
+      '('+guardXSafariRedirect.toString()+')('+route+');</scr'+'ipt>';
+    // Run before X's entry module can start its independent Safari redirect.
+    if (/<head(?:\s[^>]*)?>/i.test(body)) {
+      body=body.replace(/<head(?:\s[^>]*)?>/i,function(tag){return tag+early;});
+    } else if (/<script\b/i.test(body)) {
+      body=body.replace(/<script\b/i,function(tag){return early+tag;});
+    } else {
+      body=body.replace(/<html(?:\s[^>]*)?>/i,function(tag){return tag+early;});
+    }
+  }
+  var insert='<script data-blink-qx="1"'+nonceAttr+'>'+code+'</scr'+'ipt>';
   var out=/<\/body>/i.test(body)?body.replace(/<\/body>/i,function(){return insert+'</body>'; }):/<\/html>/i.test(body)?body.replace(/<\/html>/i,function(){return insert+'</html>'; }):body+insert;
   $done({body:out});
 }
